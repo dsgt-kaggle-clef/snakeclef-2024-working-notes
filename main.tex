@@ -60,17 +60,42 @@ Overview of related work.
 
 \section{Methodology}
 
-A description of the data and methods.
+We built a pipeline to train a classification model to identify snakes using the dinov2 \cite{oquab2023dinov2} as the main feature extractor.
+The pipeline comprises pre-processing, training, and inference stages implemented in separate modules to facilitate the development and testing of the model.
 
-For example, we use attention mechanisms \cite{vaswani2017attention} to improve the performance of a neural network on a classification task with multimodal data.
+Preprocessing includes joining metadata and images into a columnar data store to help aid with data processing in a map-reduce setting.
+We precompute the dinov2 embeddings for each image and extract the CLS token and a compressed version of the tile tokens using a 2D discrete cosine transform (DCT).
+Transfer-learning tasks often use the CLS token from vision transformers (ViTs) to train classifiers on domain-specific tasks [citation needed].
+We also keep coefficients from the DCT as an alternative representation of the image embeddings that are cheap to compute and store.
+We use Apache Spark to process the images and metadata into a Parquet dataset comprised of 200 partitions.
+We use the HuggingFace Transformers library to extract the embeddings from the dinov2 model in parallel using PySpark on a single g2-standard-8 machine on Google Cloud Platform (GCP) using an NVIDIA Tesla L4 GPU.
+
+The training module uses the embeddings and metadata to train a classifier.
+We train a neural network with a single linear layer in the same shape as the dinov2 embedding output (768 dimensions) without an activation function.
+We experiment with negative log-likelihood loss for classification and the asymmetric loss function proposed by \cite{ridnik2021asymmetric} to account for class imbalance.
+
+The inference module uses the trained model to make predictions on new images.
+We build a script to run offline without access to the network (including local-loopback).
+We chain the embedding extraction and model predictions and take the argmax of the output to get the predicted class.
+Each observation instance may have multiple images, so we use the mode of the predictions using the first image as tie-breaker as the final prediction.
 
 \section{Results}
 
-This section includes the results of the experiments, primarily in tabular or graphical form.
+% https://huggingface.co/spaces/BVRA/SnakeCLEF2024
+% TODO: convert to a table
+\begin{verbatim}
+rank 	id 	Track1 	Track2 	F1 	Accuracy 	submission_datetime
+1 	upupup 	85.63 	687 	43.66 	72.04 	2024-05-23 20:02:18
+7 	Baseline with Swin-v2 tiny. 256x256. 	67.01 	1861 	13.34 	39.88 	2024-02-28 08:13:33
+15 	DS@GT-LifeCLEF 	39.69 	3790 	0 	0 	2024-05-24 21:03:59
+\end{verbatim}
+
+We achieved a score of 39.7 on the main track, which is significantly lower than the top score of 85.6 and the baseline score of 67.0.
 
 \section{Discussion}
 
-Discussion of the results and their implications.
+While our score did not perform as well as the top score, we believe our approach has potential.
+Our pipeline is the simplest possible implementation of the dinov2 model for snake identification and can be improved in many ways.
 
 \section{Future Work}
 
